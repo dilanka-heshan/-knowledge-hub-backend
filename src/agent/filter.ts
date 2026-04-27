@@ -1,0 +1,1 @@
+// strips PII, applies scope, infers chart hint

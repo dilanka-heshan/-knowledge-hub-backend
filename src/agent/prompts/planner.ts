@@ -1,0 +1,1 @@
+// query + RAG → execution plan JSON
