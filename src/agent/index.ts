@@ -1,84 +1,47 @@
-// Agent pipeline: Plan → Execute → Stream answer
+// Agent entry point — builds and runs the LangGraph pipeline.
 //
-// Pipeline (simplified for temp mode without Dev 1 integration):
-//   1. PLAN    — look up steps from hardcoded QA pairs (TEMPORARY)
-//   2. EXECUTE — run each step using mock MCP (TEMPORARY)
-//   3. RESPOND — stream final answer via Claude (through OpenRouter)
+// Flow: plannerNode → executorNode → filterNode → responderNode
+// Each node updates shared GraphState; responderNode streams SSE to the client.
 
 import type { Response } from "express";
-import type { AgentContext, ChatRequest, SSEEvent } from "../types";
-import { buildPlan } from "./prompts/planner";
-import { buildResponderPrompt } from "./prompts/responder";
-import { filterData } from "./filter";
-import { mcpExecutor } from "../mcp/executor";
-import { streamChatCompletion } from "../llm/openRouter";
-import type { StepResult } from "../temp/mockMcpExecutor";
+import type { ChatRequest, SSEEvent } from "../types";
+import type { GraphStateType } from "../graph/state";
+import { buildAgentGraph } from "../graph/builder";
+import { saveHistory } from "../history/fileStore";
 
 function sendSSE(res: Response, event: SSEEvent): void {
   res.write(`data: ${JSON.stringify(event)}\n\n`);
 }
 
 export async function runAgent(req: ChatRequest, res: Response): Promise<void> {
-  const ctx: AgentContext = { request: req };
-
   try {
-    // Step 1: Plan — get ordered steps from QA pairs (TEMPORARY: replace with Dev 1 call)
-    ctx.plan = buildPlan(ctx);
+    const graph = buildAgentGraph(res);
 
-    // Step 2: Execute — fetch data for each step using mock MCP (TEMPORARY)
-    ctx.rawResults = await mcpExecutor.execute(ctx.plan, req.companyId);
+    // LangGraph's invoke() input uses internal ValueType/OverwriteValue generics
+    // that TypeScript 6 cannot automatically satisfy. Values are correct at runtime.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (graph as any).invoke({
+      sessionId:     req.sessionId,
+      companyId:     req.companyId,
+      query:         req.query,
+      history:       req.history,
+      outputOptions: req.outputOptions,
+      mcpServerIds:  req.mcpServerIds,
+    }) as GraphStateType;
 
-    // Step 3: Extract visualization hint (from Visualization Agent steps)
-    type VizHint = "bar_chart" | "line_chart" | "table" | "pie_chart";
-    const vizHint = (ctx.rawResults as StepResult[]).find(r => r.visualizationHint)?.visualizationHint;
-    if (vizHint) {
-      ctx.visualizationHint = vizHint as VizHint;
-      sendSSE(res, { type: "visualization_hint", data: ctx.visualizationHint });
+    // Persist the full conversation turn to a local file.
+    // TEMPORARY: replace saveHistory with a MongoDB call when ready.
+    if (result.fullResponse) {
+      saveHistory(req.sessionId, [
+        ...req.history,
+        { role: "user",      content: req.query },
+        { role: "assistant", content: result.fullResponse },
+      ]);
     }
-
-    // Step 4: Filter data for LLM context
-    ctx.filteredData = filterData(ctx.rawResults, req.outputOptions);
-
-    // Step 5: Collect source labels for attribution
-    ctx.sourceLabels = (ctx.rawResults as StepResult[])
-      .filter(r => r.data !== null && !r.isLlmStep)
-      .map(r => r.description);
-
-    // Step 6: Stream the answer via Claude (OpenRouter)
-    await streamAnswer(ctx, res);
 
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     sendSSE(res, { type: "error", data: message });
     res.end();
   }
-}
-
-async function streamAnswer(ctx: AgentContext, res: Response): Promise<void> {
-  const prompt = buildResponderPrompt(ctx);
-
-  const stream = streamChatCompletion(
-    [{ role: "user", content: prompt }],
-    2000
-  );
-
-  for await (const text of stream) {
-    sendSSE(res, { type: "text_chunk", data: text });
-  }
-
-  sendSSE(res, { type: "sources", data: ctx.sourceLabels ?? [] });
-
-  if (ctx.visualizationHint) {
-    sendSSE(res, { type: "visualization_hint", data: ctx.visualizationHint });
-  }
-
-  if (ctx.request.outputOptions.wantReport) {
-    sendSSE(res, {
-      type: "report_ready",
-      data: { downloadUrl: `/api/reports/download?sessionId=${ctx.request.sessionId}` },
-    });
-  }
-
-  sendSSE(res, { type: "done", data: null });
-  res.end();
 }

@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "hi"
+  },
+  {
+    "role": "assistant",
+    "content": "Hi there! 👋\n\nWelcome to **Atlato**! I'm Atlato-One, your intelligent business assistant. I'm here to help you with insights, data, and answers to keep your operations running smoothly.\n\nHow can I assist you today?"
+  }
+]
