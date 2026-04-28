@@ -8,21 +8,29 @@ import type { Message } from "../types";
 
 const HISTORY_DIR = path.join(__dirname, "../../data/history");
 
-export function saveHistory(sessionId: string, messages: Message[]): void {
+export interface HistoryRecord {
+  summary: string;      // rolling LLM summary of messages older than the window
+  messages: Message[];  // last N messages (trimmed to window by agent/index.ts)
+}
+
+export function saveHistory(sessionId: string, record: HistoryRecord): void {
   fs.mkdirSync(HISTORY_DIR, { recursive: true });
   fs.writeFileSync(
     path.join(HISTORY_DIR, `${sessionId}.json`),
-    JSON.stringify(messages, null, 2),
+    JSON.stringify(record, null, 2),
     "utf-8"
   );
 }
 
-export function loadHistory(sessionId: string): Message[] {
+export function loadHistory(sessionId: string): HistoryRecord {
   const file = path.join(HISTORY_DIR, `${sessionId}.json`);
-  if (!fs.existsSync(file)) return [];
+  if (!fs.existsSync(file)) return { summary: "", messages: [] };
   try {
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as Message[];
+    const parsed = JSON.parse(fs.readFileSync(file, "utf-8"));
+    // Migrate old format (plain Message[]) to new shape
+    if (Array.isArray(parsed)) return { summary: "", messages: parsed };
+    return parsed as HistoryRecord;
   } catch {
-    return [];
+    return { summary: "", messages: [] };
   }
 }

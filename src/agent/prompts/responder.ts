@@ -7,9 +7,10 @@ export function buildResponderPrompt(ctx: AgentContext): string {
   const history = buildHistoryContext(ctx);
   const data = buildDataContext(ctx);
 
+  const hasData = data.trim().length > 0;
+
   return `
 You are Atlato-One, an intelligent business assistant for the Atlato platform.
-Answer the user's question clearly and helpfully.
 
 ${history}
 User question: "${ctx.request.query}"
@@ -19,19 +20,30 @@ Instructions:
 - Be concise and professional
 - Summarize key insights from any retrieved data
 - Format numbers clearly (e.g., "65 km/h", "78% fuel level")
-- If no data is available, answer from your own knowledge
 - Do not mention internal system steps or agent names in your response
+${hasData
+  ? "- Only answer based on the retrieved data above. Do not add information not present in the data."
+  : "- No data was retrieved for this question. Respond with exactly: \"I don't have data available for this query. Please check the data source or try a more specific question.\""}
 `.trim();
 }
 
 function buildHistoryContext(ctx: AgentContext): string {
-  const recent = ctx.request.history.slice(-4);
-  if (recent.length === 0) return "";
+  const parts: string[] = [];
 
-  const lines = recent
-    .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-    .join("\n");
-  return `Recent conversation:\n${lines}\n`;
+  if (ctx.summary) {
+    parts.push(`Summary of earlier conversation:\n${ctx.summary}`);
+  }
+
+  // state.history is already trimmed to the last 8 messages by agent/index.ts
+  const recent = ctx.request.history;
+  if (recent.length > 0) {
+    const lines = recent
+      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .join("\n");
+    parts.push(`Recent conversation:\n${lines}`);
+  }
+
+  return parts.length > 0 ? parts.join("\n\n") + "\n" : "";
 }
 
 function buildDataContext(ctx: AgentContext): string {

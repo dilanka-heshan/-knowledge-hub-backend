@@ -19,7 +19,7 @@ function headers(): Record<string, string> {
 }
 
 // Single non-streaming call — returns full response text
-export async function chatCompletion(messages: Message[], maxTokens = 1000): Promise<string> {
+export async function chatCompletion(messages: Message[], maxTokens = 1000 /* old: 1000 */): Promise<string> {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: headers(),

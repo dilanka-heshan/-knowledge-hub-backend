@@ -23,6 +23,7 @@ export function createResponderNode(res: Response) {
         outputOptions: state.outputOptions,
         mcpServerIds:  state.mcpServerIds,
       },
+      summary:      state.summary,
       rawResults:   state.rawResults,
       filteredData: state.filteredData,
       sourceLabels: state.sourceLabels,
@@ -39,7 +40,7 @@ export function createResponderNode(res: Response) {
     const prompt = buildResponderPrompt(ctx);
     let fullResponse = "";
 
-    for await (const chunk of streamChatCompletion([{ role: "user", content: prompt }], 2000)) {
+    for await (const chunk of streamChatCompletion([{ role: "user", content: prompt }], 2000 /* old: 2000 */)) {
       sendSSE(res, { type: "text_chunk", data: chunk });
       fullResponse += chunk;
     }

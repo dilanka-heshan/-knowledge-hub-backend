@@ -5,13 +5,18 @@ import type { AgentContext, PlanStep } from "../../types";
 import { findMatchingSteps } from "../../temp/qaData";
 
 export function buildPlan(ctx: AgentContext): PlanStep[] {
-  // TEMPORARY: look up hardcoded steps; replace with Dev 1 API call when ready
   const steps = findMatchingSteps(ctx.request.query);
 
-  return steps.map((description, i) => ({
-    step: i + 1,
-    description,
-    source: inferSource(description),
+  console.log(`\n[Planner] query="${ctx.request.query}" → matched ${steps.length} step(s):`);
+  steps.forEach((s, i) => console.log(`  [${i}] source="${s.source ?? "?"}" toolName="${s.toolName ?? "none"}" | ${s.description.substring(0, 70)}`));
+
+  return steps.map((step, i) => ({
+    step:        i + 1,
+    description: step.description,
+    // Step can override source explicitly; otherwise infer from description or toolName
+    source:      (step.source as PlanStep["source"]) ?? (step.toolName ? "mcp" : inferSource(step.description)),
+    ...(step.toolName ? { toolName: step.toolName } : {}),
+    ...(step.params   ? { params:   step.params   } : {}),
   }));
 }
 

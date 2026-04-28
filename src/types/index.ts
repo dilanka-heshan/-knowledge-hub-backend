@@ -36,13 +36,14 @@ export type IntentType =
 export interface PlanStep {
   step: number;
   description: string;
-  source: "sap" | "bigquery" | "workflow_history" | "rag" | "dummy";
+  source: "sap" | "bigquery" | "workflow_history" | "rag" | "dummy" | "mcp";
   toolName?: string;      // MCP tool name to call
   params?: Record<string, unknown>;
 }
 
 export interface AgentContext {
   request: ChatRequest;
+  summary?: string;           // rolling summary of messages older than the window
   intent?: IntentType;
   clarificationQuestion?: string;
   plan?: PlanStep[];

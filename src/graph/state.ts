@@ -19,6 +19,10 @@ export const GraphState = Annotation.Root({
   companyId:     Annotation<string>,
   query:         Annotation<string>,
   history:       Annotation<Message[]>,
+  summary:       Annotation<string>({
+    value:   overwrite<string>,
+    default: (): string => "",
+  }),
   outputOptions: Annotation<OutputOptions>,
   mcpServerIds:  Annotation<number[]>,
 

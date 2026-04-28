@@ -15,6 +15,7 @@ export async function plannerNode(state: GraphStateType) {
       outputOptions: state.outputOptions,
       mcpServerIds:  state.mcpServerIds,
     },
+    summary: state.summary,
   };
 
   return { plan: buildPlan(ctx) };
